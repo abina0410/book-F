@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../apis/api";
 
 const timeAgo = (dateString) => {
@@ -14,6 +14,8 @@ const timeAgo = (dateString) => {
 
 function BookDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
+
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
@@ -21,6 +23,10 @@ function BookDetails() {
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
+
+  const [bookIds, setBookIds] = useState([]);
+  const [direction, setDirection] = useState(""); // "left" or "right"
+  const [transitioning, setTransitioning] = useState(false);
 
   const userId = localStorage.getItem("userId");
 
@@ -32,6 +38,7 @@ function BookDetails() {
   useEffect(() => {
     const fetchBook = async () => {
       try {
+        setLoading(true);
         const res = await api.get(`/books/${id}`);
         setBook(res.data);
       } catch (err) {
@@ -42,6 +49,18 @@ function BookDetails() {
     };
     fetchBook();
   }, [id]);
+
+  useEffect(() => {
+    const fetchBookIds = async () => {
+      try {
+        const res = await api.get("/books/latest");
+        setBookIds(res.data.map((b) => b._id));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchBookIds();
+  }, []);
 
   const fetchComments = async () => {
     try {
@@ -97,12 +116,56 @@ function BookDetails() {
     }
   };
 
+  const currentIndex = bookIds.indexOf(id);
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < bookIds.length - 1;
+
+  const handleNavigate = (nextId, dir) => {
+    setDirection(dir);
+    setTransitioning(true);
+    setTimeout(() => {
+      setTransitioning(false);
+      navigate(`/book/${nextId}`);
+    }, 300);
+  };
+
   if (loading) return <p style={{ textAlign: "center" }}>Loading...</p>;
   if (!book) return <h2 style={{ textAlign: "center" }}>Book not found</h2>;
 
+  // Slide styles
+  const slideStyle = {
+    transform: transitioning
+      ? direction === "left"
+        ? "translateX(50px) scale(0.95)"
+        : "translateX(-50px) scale(0.95)"
+      : "translateX(0) scale(1)",
+    opacity: transitioning ? 0 : 1,
+    transition: "all 0.3s ease-in-out",
+  };
+
   return (
     <div style={styles.page}>
-      <div style={styles.card}>
+      {/* ◀ LEFT ARROW */}
+      {hasPrev && (
+        <button
+          style={{ ...proArrow, left: "120px" }}
+          onClick={() => handleNavigate(bookIds[currentIndex - 1], "left")}
+        >
+          ‹
+        </button>
+      )}
+
+      {/* ▶ RIGHT ARROW */}
+      {hasNext && (
+        <button
+          style={{ ...proArrow, right: "120px" }}
+          onClick={() => handleNavigate(bookIds[currentIndex + 1], "right")}
+        >
+          ›
+        </button>
+      )}
+
+      <div style={{ ...styles.card, ...slideStyle }}>
         <img src={book.image} alt={book.title} style={styles.image} />
         <div style={styles.info}>
           <h2 style={styles.title}>{book.title}</h2>
@@ -134,7 +197,7 @@ function BookDetails() {
 
       <div style={commentLayout.container}>
         <div style={commentLayout.inner}>
-          <h3 style={commentStyles.heading}> Reader Reviews</h3>
+          <h3 style={commentStyles.heading}>Reader Reviews</h3>
 
           <div style={commentStyles.inputCard}>
             <textarea
@@ -152,7 +215,7 @@ function BookDetails() {
             </button>
           </div>
 
-          {comments.length === 0 && <p style={commentStyles.empty}>No comments yet </p>}
+          {comments.length === 0 && <p style={commentStyles.empty}>No comments yet</p>}
 
           {comments.map((c) => (
             <div key={c._id} style={commentStyles.commentCard}>
@@ -169,7 +232,6 @@ function BookDetails() {
                   <button
                     onClick={() => handleDeleteComment(c._id)}
                     style={commentStyles.deleteBtn}
-                    title="Delete comment"
                   >
                     🗑️
                   </button>
@@ -183,28 +245,98 @@ function BookDetails() {
   );
 }
 
+// 🌟 Professional minimal arrow with cappuccino hover
+const proArrow = {
+  position: "fixed",
+  top: "50%",
+  transform: "translateY(-50%)",
+  color: "#8b5e3c",
+  background: "transparent",
+  border: "none",
+  fontSize: "38px",
+  fontWeight: "600",
+  cursor: "pointer",
+  zIndex: 1000,
+  transition: "all 0.25s ease",
+  userSelect: "none",
+};
+proArrow["&:hover"] = {
+  color: "#6f4e37", // cappuccino shade
+  textShadow: "0 0 12px #f5f0e6",
+};
+
 const styles = {
-  page: { 
-    display: "flex", 
-    flexDirection: "column", 
-    alignItems: "center", 
-    padding: "40px", 
+  page: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    padding: "40px",
     fontFamily: "'Segoe UI', sans-serif",
-    backgroundColor: "#fdf8f5", 
-    minHeight: "100vh" 
+    backgroundColor: "#fdf8f5",
+    minHeight: "100vh",
   },
-  card: { display: "flex", gap: "30px", padding: "20px", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", maxWidth: "900px", background: "#fff", width: "100%" },
-  image: { width: "300px", height: "420px", objectFit: "cover", borderRadius: "10px" },
-  info: { flex: 1, fontSize: "18px", lineHeight: "1.6" },
-  title: { fontSize: "30px", fontWeight: "bold", color: "#4b2e2e", marginBottom: "12px" },
-  buttons: { display: "flex", gap: "15px", marginTop: "20px" },
-  likeBtn: { padding: "10px 20px", borderRadius: "8px", border: "1px solid #8b5e3c", background: "white", color: "#8b5e3c", fontWeight: "bold", cursor: "pointer" },
-  rentBtn: { padding: "10px 20px", borderRadius: "8px", border: "none", color: "white", fontWeight: "bold", cursor: "pointer" },
+  card: {
+    display: "flex",
+    gap: "30px",
+    padding: "20px",
+    borderRadius: "12px",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+    maxWidth: "900px",
+    background: "#fff",
+    width: "100%",
+  },
+  image: {
+    width: "300px",
+    height: "420px",
+    objectFit: "cover",
+    borderRadius: "10px",
+  },
+  info: {
+    flex: 1,
+    fontSize: "18px",
+    lineHeight: "1.6",
+  },
+  title: {
+    fontSize: "30px",
+    fontWeight: "bold",
+    color: "#4b2e2e",
+    marginBottom: "12px",
+  },
+  buttons: {
+    display: "flex",
+    gap: "15px",
+    marginTop: "20px",
+  },
+  likeBtn: {
+    padding: "10px 20px",
+    borderRadius: "8px",
+    border: "1px solid #8b5e3c",
+    background: "white",
+    color: "#8b5e3c",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
+  rentBtn: {
+    padding: "10px 20px",
+    borderRadius: "8px",
+    border: "none",
+    color: "white",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
 };
 
 const commentLayout = {
-  container: { display: "flex", justifyContent: "center", marginTop: "40px", width: "100%" },
-  inner: { maxWidth: "900px", width: "100%" },
+  container: {
+    display: "flex",
+    justifyContent: "center",
+    marginTop: "40px",
+    width: "100%",
+  },
+  inner: {
+    maxWidth: "900px",
+    width: "100%",
+  },
 };
 
 const commentStyles = {
@@ -215,15 +347,7 @@ const commentStyles = {
   empty: { color: "#8a7f72", fontStyle: "italic" },
   commentCard: { display: "flex", gap: "12px", marginBottom: "16px", alignItems: "flex-start" },
   avatar: { width: "38px", height: "38px", borderRadius: "50%", background: "#4b2e2e", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "600", fontSize: "14px" },
-  commentContent: { 
-    flex: 1, 
-    background: "#ffffff", // Changed to White for contrast
-    border: "1px solid #e0d5c8", // Subtle border to separate from background
-    borderRadius: "12px", 
-    padding: "12px 16px", 
-    position: "relative",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.02)" // Very light shadow for depth
-  },
+  commentContent: { flex: 1, background: "#ffffff", border: "1px solid #e0d5c8", borderRadius: "12px", padding: "12px 16px", position: "relative" },
   usernameRow: { display: "flex", gap: "8px", alignItems: "center", marginBottom: "4px" },
   username: { fontWeight: "600", color: "#4b2e2e" },
   time: { fontSize: "12px", color: "#999" },
