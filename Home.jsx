@@ -5,13 +5,37 @@ import api from "../apis/api";
 export default function Home() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState("All"); 
+  const [showCategories, setShowCategories] = useState(false);
   const navigate = useNavigate();
+
+  const categories = [
+    "All",
+    "Fiction",
+    "Classic",
+    "Self-help",
+    "Fantasy",
+    "Memoir",
+    "Science Fiction",
+    "Comedy Adventure",
+    "Historical fiction",
+    "Speculative fiction",
+    "Fantasy Fiction",
+    "Romance",
+    "Childrens Fiction",
+    "Paranormal",
+    "Contemporary",
+    "Rom-Com",
+  ];
 
   useEffect(() => {
     const fetchBooks = async () => {
       try {
         const res = await api.get("/books/latest");
-        setBooks(res.data);
+        const sortedBooks = res.data.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        setBooks(sortedBooks);
         setLoading(false);
       } catch (err) {
         console.error("Error fetching books", err);
@@ -21,21 +45,62 @@ export default function Home() {
     fetchBooks();
   }, []);
 
+  const filteredBooks =
+    selectedCategory === "All"
+      ? books
+      : books.filter(
+          (book) =>
+            book.category &&
+            book.category.toLowerCase().trim() ===
+              selectedCategory.toLowerCase().trim()
+        );
+
   return (
     <div style={styles.page}>
-      {/* 🔹 Section Title */}
-      <h2 style={styles.heading}>
-         New Arrivals
-      </h2>
+      {/* Category toggle with arrow */}
+      <div
+        style={styles.categoryToggle}
+        onClick={() => setShowCategories(!showCategories)}
+      >
+        Categories
+        <span style={styles.arrow}>{showCategories ? "▲" : "▼"}</span>
+      </div>
+
+      {/* Category bar with smooth expand/collapse */}
+      <div
+        style={{
+          ...styles.categoryContainer,
+          maxHeight: showCategories ? "300px" : "0px", // enough height to fit buttons
+          opacity: showCategories ? 1 : 0,
+          padding: showCategories ? "10px 0" : "0px",
+          overflow: "hidden",
+          transition: "all 0.4s ease",
+        }}
+      >
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            style={{
+              ...styles.categoryBtn,
+              backgroundColor: selectedCategory === cat ? "#7a4a2e" : "#fff",
+              color: selectedCategory === cat ? "#fff" : "#7a4a2e",
+            }}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      <h2 style={styles.heading}>New Arrivals</h2>
 
       {loading && <p style={styles.status}>Loading books...</p>}
-      {!loading && books.length === 0 && (
+      {!loading && filteredBooks.length === 0 && (
         <p style={styles.status}>No books available</p>
       )}
 
-      {/* 🔹 Book Grid */}
       <div style={styles.grid}>
-        {books.map((book) => (
+        {filteredBooks.map((book) => (
           <div
             key={book._id}
             style={styles.card}
@@ -76,8 +141,42 @@ export default function Home() {
 const styles = {
   page: {
     padding: "40px 60px",
-    backgroundColor: "#f4efe9",   // 🔑 BOOKISH beige tone
+    backgroundColor: "#f4efe9",
     minHeight: "100vh",
+  },
+
+  categoryToggle: {
+    textAlign: "center",
+    fontSize: "18px",
+    fontWeight: "600",
+    marginBottom: "10px",
+    cursor: "pointer",
+    userSelect: "none",
+    color: "#3b2f2f",
+  },
+
+  arrow: {
+    fontSize: "14px",   // smaller
+    color: "#a1867b",   // lighter
+    marginLeft: "6px",
+  },
+
+  categoryContainer: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "10px",
+    justifyContent: "center",
+    marginBottom: "35px",
+  },
+
+  categoryBtn: {
+    padding: "8px 14px",
+    borderRadius: "20px",
+    border: "1px solid #7a4a2e",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "600",
+    transition: "all 0.2s ease",
   },
 
   heading: {
@@ -110,7 +209,7 @@ const styles = {
     textAlign: "center",
     cursor: "pointer",
     boxShadow: "0 6px 14px rgba(0,0,0,0.18)",
-    transition: "transform 0.25s ease, box-shadow 0.25s ease", // smoother hover
+    transition: "transform 0.25s ease, box-shadow 0.25s ease",
   },
 
   image: {
